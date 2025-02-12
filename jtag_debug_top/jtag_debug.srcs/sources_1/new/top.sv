@@ -1,50 +1,40 @@
-// fpga_arty
+// jtag_top
 `timescale 1ns / 1ps
 
 import arty_pkg::*;
 
-module top (
-    input sysclk,
+module jtag_top (
+    input   clk_i,
+    input   rst_i,
 
-    output LedT led,
-    output LedT led_b,
-    input  SwT  sw
+    //output  logic[3:0] led_g,
+    output  logic sel,
+    input   logic[1:0] sw,
+    
+    output logic[7:0] data_o,
+    output logic[14:0] write_addr_o,
+    // when we hit the reset state
+    output logic reset_o
 );
   logic clk;
-  logic [31:0] r_count;
-
-  clk_wiz_0 clk_gen (
-      // Clock in ports
-      .clk_in1(sysclk),
-      // Clock out ports
-      .clk_out1(clk),
-      // Status and control signals
-      .reset(sw[0]),
-      .locked()
-  );
-
-  // clock divider
-  always @(posedge clk) begin
-    r_count <= r_count + 1;
-  end
 
   // logic old_sel;
   logic has_update = 0;
   logic has_reset = 0;
 
   always_comb begin
-    led[0] = SEL;
-    led[1] = UPDATE;
-    led[2] = has_reset;
-    led[3] = has_update;  // UPDATE;
+    //led_g[0] = SEL;
+    //led_g[1] = UPDATE;
+    //led_g[2] = has_reset;
+    //led_g[3] = has_update;  // UPDATE;
 
     if (sw[1]) begin
-      led_b[0] = r_count[26];
-      led_b[1] = r_count[25];
-      led_b[2] = r_count[24];
-      led_b[3] = r_count[23];
+      //led_b[0] = r_count[26];
+      //led_b[1] = r_count[25];
+      //led_b[2] = r_count[24];
+      //led_b[3] = r_count[23];
     end else begin
-      led_b = 0;
+      //led_b = 0;
     end
   end
 
@@ -76,29 +66,41 @@ module top (
   // clocked registers
   logic [7:0] bs_shift_r;
   logic [2:0] bs_bit_count_r; 
-  MemAddr     bs_addr_r;
-  MemType     bs_mem_r;
+  logic [14:0]     bs_addr_r;
+  logic [31:0]     bs_mem_r;
+  
+  logic [14:0]     write_addr_r;
  
   // temporaries
   logic [7:0] bs_tmp; 
-  MemAddr     bs_addr_next;
+  logic [14:0]     bs_addr_next;
   
   assign TDO = bs_shift_r[0];
   assign bs_tmp = {TDI, bs_shift_r[7:1]};
   assign bs_addr_next = bs_addr_r+1;
- 
+  // When this is > len of imem, we know to start writing to dmem
+  assign write_addr_o = write_addr_r;
+  assign reset_o = RESET;
+  assign sel = SEL;
+  
   always @(posedge DRCK) begin
     if (CAPTURE) begin
+      // possibly we can just do this here since we have to move through capture to get to shift
       bs_bit_count_r <= 0;
       bs_addr_r <= 0;
       bs_shift_r <= bs_mem_r[0];
-    end
-
-    if (SHIFT) begin
+      write_addr_r <= 0;
+    end else if (RESET) begin
+      bs_bit_count_r <= 0;
+      bs_addr_r <= 0;
+      bs_shift_r <= bs_mem_r[0];
+      write_addr_r <= 0;
+    end else if (SHIFT) begin
       bs_shift_r <= bs_tmp;                    // shift data out
       bs_bit_count_r <= bs_bit_count_r+1;      // wrapping 3 bit counter
-    
       if (bs_bit_count_r == 7) begin           // at last bit
+         write_addr_r <= write_addr_r + 1;     // output: how many bytes have we received
+         data_o <= bs_tmp;
          bs_mem_r[bs_addr_r] <= bs_tmp;        // update current address in memory
          bs_shift_r <= bs_mem_r[bs_addr_next]; // load next address to shift register
          bs_addr_r <= bs_addr_next;            // update address

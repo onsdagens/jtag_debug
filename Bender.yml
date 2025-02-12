@@ -1,0 +1,17 @@
+# A more detailed description of the manifest format `Bender.yml` can be found here:
+# https://github.com/pulp-platform/bender#manifest-format-benderyml
+
+package:
+  name: jtag_debug
+  authors:
+    - "onsdagens <pawdzi-7@student.ltu.se>"
+
+dependencies:
+
+sources:
+  files:
+    - jtag_debug_top/jtag_debug.srcs/sources_1/new/top.sv
+  # Source files grouped in levels. Files in level 0 have no dependencies on files in this
+  # package. Files in level 1 only depend on files in level 0, files in level 2 on files in
+  # levels 1 and 0, etc. Files within a level are ordered alphabetically.
+  # Level 0
